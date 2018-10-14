@@ -1,38 +1,62 @@
 "use strict";
 
-// Use top left square is [0,0]
+// TODO:
+// HUD properly
+// Don't redraw everything each frame
+// Enforce width/height better (and adapt to browser res (and zoom?))
+// Add mines (randomly add every N apples)
+// Improve graphics
+// Add difficulty setting
+// Add size setting
+// Optional edges are death (no wrap)
+// Add walls (levels)
+// Add level editor
+// Add sounds
+// Add event animations
+// Change to sprites
+// Add gameover and press to (re)start
+// Add pause (on focus loss)
+// Make a generic 2D grid game engine!
 
 const RIGHT = 39;
 const DOWN = 40;
 const LEFT = 37;
 const UP = 38;
 
-var INITIAL_TAIL_LENGTH = 40;
+var INITIAL_TAIL_LENGTH = 4;
 
 var snakeCanvas = null;
 var ctx = null;
-var DIFFICULTY = 20;
-var tickMS = 1000 / DIFFICULTY; // 30 FPS
-var playAreaWidth = 40;
-var playAreaHeight = 40;
+var DIFFICULTY = 10;
+var tickMS = 1000 / DIFFICULTY;
+var playAreaWidth = 10;
+var playAreaHeight = 10;
+// N.B. Top left square is [0,0]
 var headCoord = null;
 var appleCoord = null;
 var currentDirection = RIGHT;
 var tail = [];
+var score;
+var hiscore = 0;
 
-var blockWidth;
-var blockHeight;
 
-var canvasX = 0;
-var canvasY = 0;
+var blockSize;
+
 var canvasWidth;
 var canvasHeight;
+
+var playfieldCanvasXOffset;
+var playfieldCanvasYOffset;
+var playfieldCanvasWidth;
+var playfieldCanvasHeight;
 
 function initialize() {
     snakeCanvas = $("#snakeCanvas")[0];
     ctx = snakeCanvas.getContext("2d");
     canvasWidth = snakeCanvas.width;
     canvasHeight = snakeCanvas.height;
+
+    setPlayfieldCanvas();
 
     document.onkeypress = function (e) {
         e = e || window.event;
@@ -63,8 +87,28 @@ function initialize() {
     tick();
 }
 
+function setPlayfieldCanvas() {
+    // TODO: Determine dynamically
+    var hudTop = 20;
+    var hudLeft = 2;
+    var hudRight = 2;
+    var hudBottom = 2;
+
+    var totalWidthAvailable = canvasWidth - (hudLeft + hudRight);
+    var totalHeightAvailable = canvasHeight - (hudTop + hudBottom);
+
+    // Ensure blocks are always square
+    blockSize = Math.min(Math.floor(totalWidthAvailable / playAreaWidth), Math.floor(totalHeightAvailable / playAreaHeight));
+
+    playfieldCanvasWidth = blockSize * playAreaWidth;
+    playfieldCanvasHeight = blockSize * playAreaHeight;
+
+    playfieldCanvasXOffset = hudLeft + Math.floor((totalWidthAvailable - playfieldCanvasWidth) / 2);
+    playfieldCanvasYOffset = hudTop + Math.floor((totalHeightAvailable - playfieldCanvasHeight) / 2);
+}
+
 function handleResize(width, height) {
-    blockSize = canvasWidth / playAreaWidth
+    // TODO
 }
 
 function resetSnake() {
@@ -75,25 +119,37 @@ function resetSnake() {
     });
 }
 
-function clearScreen() {
+function clearPlayfield() {
     ctx.beginPath();
-    ctx.rect(canvasX, canvasY, canvasWidth, canvasHeight);
+    ctx.rect(playfieldCanvasXOffset, playfieldCanvasYOffset, playfieldCanvasWidth, playfieldCanvasHeight);
     ctx.fillStyle = "white";
     ctx.fill();
 }
 
+function renderChrome() {
+    ctx.beginPath();
+    ctx.rect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillStyle = "blue";
+    ctx.fill();
+}
+
+function renderHUD() {
+    ctx.font="20px Georgia";
+    ctx.fillText("Score: " + score + "    Hi-Score: " + hiscore, 10, 20);
+}
+
 function renderSquare(x, y, colour) {
-    var x = blockWidth * x;
-    var y = blockHeight * y;
+    var x = playfieldCanvasXOffset + blockSize * x;
+    var y = playfieldCanvasYOffset + blockSize * y;
 
     ctx.beginPath();
-    ctx.rect(x, y, blockWidth, blockHeight);
+    ctx.rect(x, y, blockSize, blockSize);
     ctx.fillStyle = colour;
     ctx.fill();
 }
 
 function render() {
-    clearScreen();
+    clearPlayfield();
     for (var i in tail) {
         var tailCoord = tail[i]
         renderSquare(tailCoord[0], tailCoord[1], "black");
@@ -101,12 +157,25 @@ function render() {
 
     renderSquare(headCoord[0], headCoord[1], "black");
     renderSquare(appleCoord[0], appleCoord[1], "red");
+    renderHUD();
 }
 
-    console.log(headCoord);
-
 function randomApple() {
-    appleCoord = [Math.floor(Math.random() * playAreaWidth), Math.floor(Math.random() * playAreaHeight)];
+    var badApple = true;
+    while (badApple) {
+        appleCoord = [Math.floor(Math.random() * playAreaWidth), Math.floor(Math.random() * playAreaHeight)];
+        badApple = false;
+        for (var i in tail) {
+            var tailCoord = tail[i]
+            if (appleCoord[0] == tailCoord[0] && appleCoord[1] == tailCoord[1]) {
+                badApple = true;
+                break;
+            }
+        }
+        if (appleCoord[0] == headCoord[0] && appleCoord[1] == headCoord[1]) {
+            badApple = true;
+        }
+    }
 }
 
 function moveSnake() {
@@ -141,6 +210,7 @@ function checkEat() {
     if (headCoord[0] == appleCoord[0] && headCoord[1] == appleCoord[1]) {
         randomApple();
         tail.unshift(tail[0]);
+        score += DIFFICULTY;
     }
 }
 
@@ -148,6 +218,7 @@ function checkDead() {
     for (var i in tail) {
         var tailCoord = tail[i]
         if (headCoord[0] == tailCoord[0] && headCoord[1] == tailCoord[1]) {
+            hiscore = Math.max(score, hiscore);
             reset();
             return;
         }
@@ -155,11 +226,10 @@ function checkDead() {
 }
 
 function reset() {
-    blockWidth = canvasWidth / playAreaWidth;
-    blockHeight = canvasHeight / playAreaHeight;
-    clearScreen()
+    clearPlayfield()
     resetSnake();
     randomApple();
+    score = 0;
 }
 
 function tick() {
@@ -167,34 +237,20 @@ function tick() {
     moveSnake();
     checkEat();
     checkDead();
+    renderChrome();
+    renderHUD();
     render();
+
 }
 
-function getRandomColor() {
-  var letters = '0123456789ABCDEF';
-  var color = '#';
-  for (var i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
-}
-
-function test(fillStyle) {
-    var ctx = snakeCanvas.getContext("2d");
-    // ctx.moveTo(0, 0);
-    // ctx.lineTo(200, 100);
-    // ctx.stroke();
-
-    ctx.beginPath();
-    ctx.rect(0, 0, 1000, 1000);
-    ctx.fillStyle = "black";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.rect(10, 10, 1000 - 20, 1000 - 20);
-    ctx.fillStyle = fillStyle;
-    ctx.fill();
-}
+// function getRandomColor() {
+//   var letters = '0123456789ABCDEF';
+//   var color = '#';
+//   for (var i = 0; i < 6; i++) {
+//     color += letters[Math.floor(Math.random() * 16)];
+//   }
+//   return color;
+// }
 
 (function($) {
     $(document).ready(function() {
