@@ -58,7 +58,7 @@ function initialize() {
 
     setPlayfieldCanvas();
 
-    document.onkeypress = function (e) {
+    document.onkeydown = function (e) {
         e = e || window.event;
         switch(e.keyCode) {
             case RIGHT:
